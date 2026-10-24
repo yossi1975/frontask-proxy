@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>כניסה לביטוח לאומי</title>
+<!--
+  ============================================================================
+  btl_login_helper.html — כניסה לאזור האישי של ביטוח לאומי (מחשב + מובייל)
+  ----------------------------------------------------------------------------
+  Web Resource (HTML) עצמאי לטופס איש קשר (contact) ב-Dynamics 365 / Dataverse.
+  פותח את אתר ביטוח לאומי בלשונית חדשה ומעתיק ת.ז. / קוד משתמש / סיסמה
+  בלחיצה אחת לכל שדה. עובד בכל דפדפן, כולל Chrome / Safari בטלפון.
+
+  שלושה אופני הפעלה (הקובץ מזהה לבד):
+   1. מוטמע בטופס (Web Resource בטאב)  -> קורא ערכים חיים מהטופס (גם לא שמורים).
+   2. דיאלוג Xrm.Navigation.navigateTo   -> data = "rid=<GUID>"
+   3. לשונית נפרדת:  /WebResources/<שם>?data=rid%3D<GUID>   -> Web API.
+
+  הגדרות (אופציונלי) בפרמטר data, מופרד ב-; :
+     tz=<logical name ת.ז.>;user=<קוד משתמש>;pass=<סיסמה>;url=<כתובת כניסה>;rid=<GUID>
+  בלי הגדרות — השדות מזוהים אוטומטית לפי התוויות (ת.ז. / קוד משתמש / סיסמה),
+  ובלשונית "בדיקה והגדרות" מוצגת מחרוזת ה-data המדויקת להדבקה.
+
+  אבטחה: הערכים לא נשלחים לשום שרת חיצוני, לא נכתבים ל-URL ולא ללוג.
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#14213d; --muted:#5b6478; --line:#dfe4ee;
+    --brand:#1a3d8f; --brand-ink:#ffffff; --brand-2:#0b6bcb; --ok:#13795b; --ok-bg:#e6f5ef;
+    --warn:#8a5a00; --warn-bg:#fff4dc; --err:#b42318; --err-bg:#fdecea; --field:#f7f9fd;
+    --focus:#ffbf47; --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1420; --card:#171e2d; --ink:#e8edf7; --muted:#a3adc2; --line:#2a3447;
+      --brand:#3d6fe0; --brand-ink:#ffffff; --brand-2:#5aa2ff; --ok:#4cc79a; --ok-bg:#12302a;
+      --warn:#f0c060; --warn-bg:#3a2e12; --err:#ff8a80; --err-bg:#3b1716; --field:#111827;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1420; --card:#171e2d; --ink:#e8edf7; --muted:#a3adc2; --line:#2a3447;
+    --brand:#3d6fe0; --brand-ink:#ffffff; --brand-2:#5aa2ff; --ok:#4cc79a; --ok-bg:#12302a;
+    --warn:#f0c060; --warn-bg:#3a2e12; --err:#ff8a80; --err-bg:#3b1716; --field:#111827;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Assistant","Rubik",Arial,sans-serif; font-size:16px; line-height:1.45;
+    direction:rtl; text-align:right; -webkit-text-size-adjust:100%;
+    padding:12px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left));
+  }
+  .card{max-width:560px;margin:0 auto;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:16px;box-shadow:0 4px 18px rgba(20,33,61,.08)}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .logo{flex:0 0 44px;height:44px;border-radius:50%;background:var(--brand);color:var(--brand-ink);
+    display:grid;place-items:center;font-weight:700;font-size:15px}
+  h1{font-size:18px;margin:0}
+  .sub{color:var(--muted);font-size:14px;margin:2px 0 0}
+  .primary{
+    display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;
+    padding:12px 16px;border-radius:12px;background:var(--brand);color:var(--brand-ink);
+    font-size:17px;font-weight:700;text-decoration:none;border:0;cursor:pointer;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  }
+  .primary:hover{filter:brightness(1.08)}
+  .primary[aria-disabled="true"]{opacity:.55;pointer-events:none}
+  .hint{color:var(--muted);font-size:13px;margin:8px 2px 4px}
+  ol.rows{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+  .row{display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;
+    border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--field)}
+  .row.done{border-color:var(--ok);background:var(--ok-bg)}
+  .num{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+    background:var(--card);border:1px solid var(--line);font-weight:700;font-size:14px}
+  .row.done .num{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .meta{min-width:0}
+  .lbl{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+  .valwrap{display:flex;align-items:center;gap:6px}
+  .val{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);padding:2px 0;
+    font:600 18px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.5px;
+    direction:ltr;text-align:right}
+  .val:focus{outline:none}
+  .actions{display:flex;gap:6px}
+  .btn{min-width:44px;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);font:600 15px/1 inherit;font-family:inherit;cursor:pointer;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .btn.copy{background:var(--brand-2);color:#fff;border-color:transparent}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.icon{padding:0;width:44px}
+  :is(a,button,input,select,summary):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .status{min-height:22px;margin:12px 2px 0;font-size:14px}
+  .msg{border-radius:10px;padding:10px 12px;margin-top:10px;font-size:14px}
+  .msg.warn{background:var(--warn-bg);color:var(--warn)}
+  .msg.err{background:var(--err-bg);color:var(--err)}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+  summary{cursor:pointer;color:var(--muted);font-size:14px;min-height:32px;display:flex;align-items:center}
+  .diag{font-size:13px;color:var(--muted);display:grid;gap:8px;margin-top:8px}
+  .diag label{display:grid;gap:4px}
+  .diag select{min-height:40px;border-radius:8px;border:1px solid var(--line);background:var(--field);
+    color:var(--ink);font:inherit;padding:0 8px}
+  .cfg{display:flex;gap:6px;align-items:center}
+  .cfg code{flex:1;min-width:0;overflow-wrap:anywhere;direction:ltr;text-align:left;background:var(--field);
+    border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--ink)}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @media (max-width:380px){ .row{grid-template-columns:1fr auto} .num{display:none} .btn{padding:0 10px} }
+  @media (prefers-reduced-motion:no-preference){ .row,.btn,.primary{transition:background-color .2s,border-color .2s,filter .2s} }
+</style>
+</head>
+<body>
+<main class="card" aria-labelledby="ttl">
+  <header>
+    <div class="logo" aria-hidden="true">ב״ל</div>
+    <div>
+      <h1 id="ttl">כניסה לאזור האישי – ביטוח לאומי</h1>
+      <p class="sub" id="clientName">טוען נתוני לקוח…</p>
+    </div>
+  </header>
+
+  <a id="openBtn" class="primary" href="https://ps.btl.gov.il/" target="_blank" rel="noopener noreferrer" aria-disabled="true">
+    <span aria-hidden="true">↗</span> פתח את ביטוח לאומי (ת.ז. מועתקת)
+  </a>
+  <p class="hint">בטלפון: האתר נפתח בלשונית חדשה. מדביקים את ת.ז., חוזרים ללשונית הזו, מעתיקים את קוד המשתמש וממשיכים כך עם הסיסמה.</p>
+
+  <ol class="rows" id="rows" aria-label="פרטי כניסה"></ol>
+
+  <div id="msgs" aria-live="polite"></div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <details id="diagBox">
+    <summary>בדיקה והגדרות</summary>
+    <div class="diag" id="diag"></div>
+  </details>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- קבועים */
+  var DEFAULT_URL = "https://ps.btl.gov.il/";
+  var API = "/api/data/v9.2/";
+  var TIMEOUT_MS = 15000;
+  var ENTITY = "contact", ENTITY_SET = "contacts";
+
+  var KEYS = ["tz", "user", "pass"];
+  var DEF = {
+    tz:   { title: "תעודת זהות",  short: "ת.ז.",
+            re: /ת\.?\s?ז|ת["״']ז|תעודת\s*זהות|מספר\s*זהות|מזהה\s*ממשלתי|governmentid|teudat|zehut|id_?number|(^|_)tz(_|$)/ },
+    user: { title: "קוד משתמש",   short: "קוד משתמש",
+            re: /קוד\s*משתמש|שם\s*משתמש|user_?code|user_?name|(^|_)user(_|$)|login/ },
+    pass: { title: "סיסמה",        short: "סיסמה",
+            re: /סיסמ|password|passw|(^|_)pass(_|$)|pwd/ }
+  };
+  // ביטוח לאומי — בונוס. גופים אחרים (קופות חולים, חברות ביטוח, בנקים) — פסילה.
+  var RE_BTL = /ביטוח\s*לאומי|ב["״']ל|btl|bituach|leumi(?!t)/;
+  var RE_OTHER = /מכבי|כללית|מאוחדת|לאומית|maccabi|clalit|meuhedet|leumit|הראל|מגדל|פניקס|מנורה|הכשרה|איילון|בנק|bank|מייל|mail|גמל|פנסי/;
+
+  /* ---------------------------------------------------------------- מצב */
+  var cfg = readConfig();
+  var state = {
+    mode: null,          // "form" | "api"
+    xrm: null,
+    recordId: cfg.rid || null,
+    map: { tz: null, user: null, pass: null },        // logical names
+    src: { tz: null, user: null, pass: null },        // "config" | "auto" | "manual"
+    labels: {},                                        // logical -> label
+    candidates: [],                                    // [{name,label}]
+    ambiguous: {},
+    values: { tz: "", user: "", pass: "" },
+    ready: false
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elRows = $("rows"), elStatus = $("status"), elMsgs = $("msgs"), elOpen = $("openBtn");
+
+  /* ---------------------------------------------------------------- הגדרות */
+  function readConfig() {
+    var out = {}, qs = new URLSearchParams(location.search);
+    var raw = qs.get("data") || "";
+    raw.split(/[;&]/).forEach(function (pair) {
+      var i = pair.indexOf("=");
+      if (i < 1) return;
+      var k = pair.slice(0, i).trim().toLowerCase(), v = pair.slice(i + 1).trim();
+      try { v = decodeURIComponent(v); } catch (e) { /* כבר מפוענח */ }
+      if (v) out[k] = v;
+    });
+    if (!out.rid && qs.get("id")) out.rid = qs.get("id");          // "העבר מזהה רשומה כפרמטר"
+    if (out.rid) out.rid = cleanGuid(out.rid);
+    ["tz", "user", "pass"].forEach(function (k) {
+      if (out[k] && !/^[a-z0-9_]+$/i.test(out[k])) delete out[k];  // מגן מפני הזרקה ל-$select
+      else if (out[k]) out[k] = out[k].toLowerCase();
+    });
+    out.url = safeUrl(out.url) || DEFAULT_URL;
+    return out;
+  }
+  function cleanGuid(g) {
+    g = String(g || "").replace(/[{}]/g, "").trim().toLowerCase();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(g) ? g : null;
+  }
+  function safeUrl(u) {
+    try { var x = new URL(u); return x.protocol === "https:" ? x.href : null; } catch (e) { return null; }
+  }
+  function session(key, val) {
+    try {
+      if (val === undefined) return JSON.parse(sessionStorage.getItem(key) || "null");
+      sessionStorage.setItem(key, JSON.stringify(val));
+    } catch (e) { return null; }
+  }
+
+  /* ---------------------------------------------------------------- UI */
+  function status(text, kind) {
+    elStatus.textContent = text || "";
+    elStatus.style.color = kind === "err" ? "var(--err)" : kind === "ok" ? "var(--ok)" : "var(--muted)";
+  }
+  function message(text, kind) {
+    var d = document.createElement("div");
+    d.className = "msg " + (kind || "warn");
+    d.textContent = text;
+    elMsgs.appendChild(d);
+  }
+  function clearMessages() { elMsgs.textContent = ""; }
+
+  function buildRows() {
+    elRows.textContent = "";
+    KEYS.forEach(function (k, i) {
+      var li = document.createElement("li");
+      li.className = "row"; li.id = "row-" + k;
+
+      var num = document.createElement("span");
+      num.className = "num"; num.setAttribute("aria-hidden", "true"); num.textContent = String(i + 1);
+
+      var meta = document.createElement("div"); meta.className = "meta";
+      var lbl = document.createElement("label");
+      lbl.className = "lbl"; lbl.htmlFor = "val-" + k; lbl.textContent = DEF[k].title;
+      var wrap = document.createElement("div"); wrap.className = "valwrap";
+      var inp = document.createElement("input");
+      inp.id = "val-" + k; inp.className = "val"; inp.readOnly = true;
+      inp.type = k === "pass" ? "password" : "text";
+      inp.autocomplete = "off"; inp.spellcheck = false; inp.value = "—";
+      inp.setAttribute("autocapitalize", "off");
+      wrap.appendChild(inp); meta.appendChild(lbl); meta.appendChild(wrap);
+
+      var act = document.createElement("div"); act.className = "actions";
+      if (k === "pass") {
+        var eye = document.createElement("button");
+        eye.type = "button"; eye.className = "btn icon"; eye.id = "eye";
+        eye.setAttribute("aria-label", "הצג סיסמה"); eye.setAttribute("aria-pressed", "false");
+        eye.textContent = "👁";
+        eye.addEventListener("click", function () {
+          var show = inp.type === "password";
+          inp.type = show ? "text" : "password";
+          eye.setAttribute("aria-pressed", String(show));
+          eye.setAttribute("aria-label", show ? "הסתר סיסמה" : "הצג סיסמה");
+        });
+        act.appendChild(eye);
+      }
+      var cp = document.createElement("button");
+      cp.type = "button"; cp.className = "btn copy"; cp.id = "copy-" + k; cp.disabled = true;
+      cp.textContent = "העתק"; cp.setAttribute("aria-label", "העתק " + DEF[k].title);
+      cp.addEventListener("click", function () { copyKey(k); });
+      act.appendChild(cp);
+
+      li.appendChild(num); li.appendChild(meta); li.appendChild(act);
+      elRows.appendChild(li);
+    });
+  }
+
+  function render() {
+    KEYS.forEach(function (k) {
+      var v = state.values[k], has = !!v;
+      $("val-" + k).value = has ? v : (state.map[k] ? "ריק" : "לא הוגדר");
+      $("copy-" + k).disabled = !has;
+    });
+    var tzOk = !!state.values.tz;
+    elOpen.href = cfg.url;
+    elOpen.setAttribute("aria-disabled", "false");   // האתר נפתח גם בלי ת.ז.
+    elOpen.lastChild.nodeValue = tzOk ? " פתח את ביטוח לאומי (ת.ז. מועתקת)" : " פתח את ביטוח לאומי";
+    renderDiag();
+  }
+
+  /* ---------------------------------------------------------------- העתקה */
+  // חייב לרוץ סינכרונית בתוך אירוע הלחיצה (דרישת iOS / Android) — לכן לא מושכים נתונים כאן מהשרת.
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).catch(function () {
+        if (legacyCopy(text)) return true;
+        throw new Error("clipboard");
+      });
+    }
+    return legacyCopy(text) ? Promise.resolve(true) : Promise.reject(new Error("clipboard"));
+  }
+  function legacyCopy(text) {
+    var ta = document.createElement("textarea"), ok = false;
+    ta.value = text; ta.setAttribute("readonly", ""); ta.setAttribute("aria-hidden", "true");
+    ta.style.cssText = "position:fixed;top:-1000px;left:0;opacity:0;font-size:16px";
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function copyKey(k) {
+    refreshFromForm();                       // בטופס: הערך העדכני ביותר, גם אם לא נשמר
+    var v = state.values[k];
+    if (!v) { status(DEF[k].title + " ריק בכרטיס", "err"); return Promise.resolve(false); }
+    $("val-" + k).value = v;
+    return copyText(v).then(function () {
+      $("row-" + k).classList.add("done");
+      status("✓ " + DEF[k].short + " הועתק/ה. הדבק באתר ביטוח לאומי.", "ok");
+      return true;
+    }).catch(function () {
+      var inp = $("val-" + k);
+      if (k === "pass") inp.type = "text";
+      inp.focus(); inp.select();
+      status("הדפדפן חסם העתקה אוטומטית. הערך מסומן, אפשר ללחוץ לחיצה ארוכה ואז ״העתק״.", "err");
+      return false;
+    });
+  }
+
+  /* ---------------------------------------------------------------- מקור נתונים: טופס */
+  function getFormXrm() {
+    try {
+      if (window.parent === window) return null;
+      var x = window.parent.Xrm;
+      if (!x || !x.Page || !x.Page.data || !x.Page.data.entity) return null;
+      var ent = x.Page.data.entity;
+      if (ent.getEntityName() !== ENTITY) return null;
+      var id = cleanGuid(ent.getId());
+      if (!id) return null;                                 // טופס יצירה — אין עדיין רשומה
+      if (state.recordId && state.recordId !== id) return null; // דיאלוג של רשומה אחרת
+      state.recordId = id;
+      return x;
+    } catch (e) { return null; } // חסימת cross-frame
+  }
+  function formCandidates(x) {
+    var list = [];
+    x.Page.data.entity.attributes.get().forEach(function (a) {
+      try {
+        if (a.getAttributeType() !== "string") return;
+        var c = a.controls.get(), label = c.length ? c[0].getLabel() : "";
+        list.push({ name: a.getName(), label: label || "" });
+      } catch (e) { /* מתעלמים משדה בעייתי */ }
+    });
+    return list;
+  }
+  function refreshFromForm() {
+    if (state.mode !== "form" || !state.xrm) return;
+    KEYS.forEach(function (k) {
+      var n = state.map[k];
+      if (!n) return;
+      try {
+        var a = state.xrm.Page.getAttribute(n);
+        state.values[k] = normalize(k, a ? a.getValue() : "");
+      } catch (e) { /* הטופס נסגר */ }
+    });
+  }
+
+  /* ---------------------------------------------------------------- מקור נתונים: Web API */
+  function api(path) {
+    var ctrl = "AbortController" in window ? new AbortController() : null;
+    var t = ctrl ? setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS) : null;
+    return fetch(location.origin + API + path, {
+      method: "GET", credentials: "same-origin", signal: ctrl ? ctrl.signal : undefined,
+      headers: { "Accept": "application/json", "OData-Version": "4.0", "OData-MaxVersion": "4.0",
+                 "Prefer": "odata.include-annotations=\"OData.Community.Display.V1.FormattedValue\"" }
+    }).then(function (r) {
+      if (t) clearTimeout(t);
+      if (r.ok) return r.json();
+      return r.json().catch(function () { return {}; }).then(function (body) {
+        var m = body && body.error && body.error.message || ("HTTP " + r.status);
+        var e = new Error(m); e.status = r.status; throw e;
+      });
+    }, function (err) {
+      if (t) clearTimeout(t);
+      var e = new Error(err && err.name === "AbortError" ? "תם הזמן (timeout) בפנייה ל-Dataverse" : "אין חיבור לשרת");
+      e.status = 0; throw e;
+    });
+  }
+  function apiCandidates() {
+    return api("EntityDefinitions(LogicalName='" + ENTITY + "')/Attributes/Microsoft.Dynamics.CRM.StringAttributeMetadata" +
+               "?$select=LogicalName,DisplayName,IsValidForRead")
+      .then(function (j) {
+        return (j.value || []).filter(function (a) { return a.IsValidForRead !== false; }).map(function (a) {
+          var l = a.DisplayName && a.DisplayName.UserLocalizedLabel && a.DisplayName.UserLocalizedLabel.Label;
+          return { name: a.LogicalName, label: l || "" };
+        });
+      });
+  }
+  function loadFromApi() {
+    var sel = ["fullname"].concat(KEYS.map(function (k) { return state.map[k]; }).filter(Boolean));
+    return api(ENTITY_SET + "(" + state.recordId + ")?$select=" + sel.join(",")).then(function (rec) {
+      state.name = rec.fullname || "";
+      KEYS.forEach(function (k) {
+        var n = state.map[k];
+        state.values[k] = n ? normalize(k, rec[n]) : "";
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------- זיהוי שדות */
+  function score(k, c) {
+    var t = (c.label + " " + c.name).toLowerCase();
+    if (!DEF[k].re.test(t)) return 0;
+    if (RE_OTHER.test(t)) return 0;
+    var s = 10;
+    if (RE_BTL.test(t)) s += 5;
+    // שדה שמתאים גם למפתח אחר (למשל "קוד משתמש וסיסמה") — עדיפות נמוכה
+    KEYS.forEach(function (o) { if (o !== k && DEF[o].re.test(t)) s -= 6; });
+    if (k === "tz" && c.name === "governmentid") s += 1;
+    return s;
+  }
+  function autoDetect(cands) {
+    var used = {};
+    KEYS.forEach(function (k) {
+      if (state.map[k]) { used[state.map[k]] = 1; return; }
+      var ranked = cands.map(function (c) { return { c: c, s: score(k, c) }; })
+        .filter(function (r) { return r.s > 0 && !used[r.c.name]; })
+        .sort(function (a, b) { return b.s - a.s; });
+      if (!ranked.length) return;
+      if (ranked[1] && ranked[1].s === ranked[0].s) { state.ambiguous[k] = ranked.filter(function (r) { return r.s === ranked[0].s; }).map(function (r) { return r.c.name; }); return; }
+      state.map[k] = ranked[0].c.name; state.src[k] = "auto"; used[ranked[0].c.name] = 1;
+    });
+  }
+
+  function normalize(k, v) {
+    if (v === null || v === undefined) return "";
+    v = String(v).trim();
+    if (k === "tz") {
+      var d = v.replace(/[\s\-.]/g, "");
+      if (/^\d{5,9}$/.test(d)) return d.length < 9 ? ("000000000" + d).slice(-9) : d; // אפסים מובילים
+    }
+    return v;
+  }
+  function validIsraeliId(id) {
+    if (!/^\d{9}$/.test(id)) return false;
+    var sum = 0;
+    for (var i = 0; i < 9; i++) { var n = Number(id[i]) * ((i % 2) + 1); sum += n > 9 ? n - 9 : n; }
+    return sum % 10 === 0;
+  }
+
+  /* ---------------------------------------------------------------- בדיקה והגדרות */
+  function configString() {
+    var parts = [];
+    KEYS.forEach(function (k) { if (state.map[k]) parts.push(k + "=" + state.map[k]); });
+    if (cfg.url !== DEFAULT_URL) parts.push("url=" + cfg.url);
+    return parts.join(";");
+  }
+  function renderDiag() {
+    var box = $("diag"); box.textContent = "";
+    var p = function (t) { var e = document.createElement("div"); e.textContent = t; box.appendChild(e); return e; };
+    p("מצב: " + (state.mode === "form" ? "מוטמע בטופס (ערכים חיים מהטופס)" : "Web API (ערכים שמורים)") +
+      (state.recordId ? " · רשומה " + state.recordId : ""));
+
+    KEYS.forEach(function (k) {
+      var lab = document.createElement("label");
+      lab.textContent = DEF[k].title + (state.src[k] ? " (" + ({ config: "מהגדרה", auto: "זוהה אוטומטית", manual: "נבחר ידנית" })[state.src[k]] + ")" : " (לא נמצא)");
+      var s = document.createElement("select");
+      s.setAttribute("aria-label", "שדה " + DEF[k].title);
+      var o0 = document.createElement("option"); o0.value = ""; o0.textContent = "— בחר שדה —"; s.appendChild(o0);
+      state.candidates.slice().sort(function (a, b) { return score(k, b) - score(k, a) || a.label.localeCompare(b.label, "he"); })
+        .forEach(function (c) {
+          var o = document.createElement("option");
+          o.value = c.name; o.textContent = (c.label || "(ללא תווית)") + " — " + c.name;
+          if (c.name === state.map[k]) o.selected = true;
+          s.appendChild(o);
+        });
+      if (state.map[k] && !state.candidates.some(function (c) { return c.name === state.map[k]; })) {
+        var ox = document.createElement("option"); ox.value = state.map[k]; ox.textContent = state.map[k]; ox.selected = true; s.appendChild(ox);
+      }
+      s.addEventListener("change", function () {
+        state.map[k] = s.value || null; state.src[k] = s.value ? "manual" : null;
+        session("btl_map", state.map);
+        reload();
+      });
+      lab.appendChild(s); box.appendChild(lab);
+    });
+
+    var cs = configString();
+    p("מחרוזת להדבקה בשדה ״פרמטר מותאם אישית (data)״ של ה-Web Resource, כדי שההגדרה תישמר קבוע לכל המכשירים:");
+    var row = document.createElement("div"); row.className = "cfg";
+    var code = document.createElement("code"); code.textContent = cs || "(בחר שדות קודם)";
+    var b = document.createElement("button"); b.type = "button"; b.className = "btn"; b.textContent = "העתק";
+    b.disabled = !cs; b.setAttribute("aria-label", "העתק מחרוזת הגדרות");
+    b.addEventListener("click", function () {
+      copyText(cs).then(function () { status("✓ מחרוזת ההגדרות הועתקה", "ok"); }, function () { status("העתקה נכשלה", "err"); });
+    });
+    row.appendChild(code); row.appendChild(b); box.appendChild(row);
+  }
+
+  /* ---------------------------------------------------------------- טעינה */
+  function applySessionMap() {
+    var m = session("btl_map");
+    if (!m) return;
+    KEYS.forEach(function (k) {
+      if (!cfg[k] && m[k] && /^[a-z0-9_]+$/.test(m[k])) { state.map[k] = m[k]; state.src[k] = "manual"; }
+    });
+  }
+
+  function reload() {
+    clearMessages();
+    var p = state.mode === "form"
+      ? Promise.resolve().then(function () {
+          refreshFromForm();
+          try { state.name = state.xrm.Page.data.entity.getPrimaryAttributeValue() || ""; } catch (e) { /* */ }
+        })
+      : loadFromApi();
+    return p.then(afterLoad, onError);
+  }
+
+  function afterLoad() {
+    $("clientName").textContent = state.name ? "לקוח: " + state.name : "";
+    var missing = KEYS.filter(function (k) { return !state.map[k]; });
+    if (missing.length) {
+      message("לא זוהו אוטומטית: " + missing.map(function (k) { return DEF[k].title; }).join(", ") +
+              ". בחר את השדות ב״בדיקה והגדרות״ למטה.", "warn");
+      $("diagBox").open = true;
+    }
+    KEYS.forEach(function (k) {
+      if (state.map[k] && !state.values[k]) message(DEF[k].title + " ריק בכרטיס, או שאין לך הרשאה לראות אותו (אבטחת שדות).", "warn");
+    });
+    if (state.values.tz && /^\d+$/.test(state.values.tz) && !validIsraeliId(state.values.tz)) {
+      message("שים לב: ת.ז. " + state.values.tz + " לא עוברת בדיקת ספרת ביקורת.", "warn");
+    }
+    state.ready = true;
+    render();
+    status("");
+  }
+
+  function onError(e) {
+    var m = e && e.message || String(e), s = e && e.status;
+    if (s === 401) m = "פג תוקף ההתחברות ל-Dynamics. רענן את הדף והתחבר מחדש.";
+    else if (s === 403) m = "אין הרשאת קריאה לאנשי קשר או לשדות האלה. פנה למנהל המערכת.";
+    else if (s === 404) m = "הרשומה לא נמצאה (נמחקה או אין הרשאה).";
+    else if (s === 400 && /property/i.test(m)) m = "אחד משמות השדות בהגדרה לא קיים: " + m;
+    message(m, "err");
+    $("diagBox").open = true;
+    render();
+    status("");
+  }
+
+  function init() {
+    buildRows();
+    elOpen.href = cfg.url;
+    KEYS.forEach(function (k) { if (cfg[k]) { state.map[k] = cfg[k]; state.src[k] = "config"; } });
+    applySessionMap();
+
+    // לחיצה על הכפתור הראשי: הקישור נפתח (target=_blank) ובאותה לחיצה מעתיקים את ת.ז.
+    elOpen.addEventListener("click", function () {
+      if (state.values.tz) copyKey("tz");
+      else status("נפתח אתר ביטוח לאומי. ת.ז. לא נמצאה בכרטיס.", "err");
+    });
+
+    state.xrm = getFormXrm();
+    state.mode = state.xrm ? "form" : "api";
+
+    if (state.mode === "api" && !state.recordId) {
+      message("לא התקבל מזהה רשומה. פתח את העמוד מתוך כרטיס איש קשר, או סמן ב-Web Resource את ״העבר מזהה רשומה וקוד סוג אובייקט כפרמטרים״.", "err");
+      $("clientName").textContent = "";
+      render();
+      return;
+    }
+
+    var needDetect = KEYS.some(function (k) { return !state.map[k]; });
+    var cp = state.mode === "form"
+      ? Promise.resolve(formCandidates(state.xrm))
+      : (needDetect ? apiCandidates() : Promise.resolve([]));
+
+    cp.then(function (list) {
+      state.candidates = list;
+      list.forEach(function (c) { state.labels[c.name] = c.label; });
+      if (needDetect) autoDetect(list);
+      // בטופס: שדה מוגדר שלא מופיע בטופס — קוראים אותו דרך Web API
+      if (state.mode === "form" && KEYS.some(function (k) { return state.map[k] && !state.xrm.Page.getAttribute(state.map[k]); })) {
+        state.mode = "api";
+      }
+      return reload();
+    }).catch(function (e) {
+      // אין גישה למטא-דאטה — ממשיכים עם מה שיש
+      if (state.mode === "api") return reload().then(function () { if (e) message("זיהוי אוטומטי לא זמין: " + (e.message || e), "warn"); });
+      onError(e);
+    });
+
+    // חזרה ללשונית (בטלפון אחרי הדבקה באתר ב"ל) — רענון ערכים מהטופס
+    var onBack = function () { if (document.visibilityState === "visible" && state.ready && state.mode === "form") { refreshFromForm(); render(); } };
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
