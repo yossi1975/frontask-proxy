@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מרכז בקרה</title>
+<style>
+  :root {
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --text: #1b2430;
+    --muted: #5b6673;
+    --border: #d9dee5;
+    --accent: #2b6cb0;
+    --accent-soft: #e6f0fb;
+    --focus: #d97706;
+    --danger: #b42318;
+    --danger-soft: #fdecea;
+    --tile-dash: #2b6cb0;
+    --tile-personal: #0f766e;
+    --tile-web: #7c3aed;
+    --radius: 12px;
+    --header-h: 48px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    text-align: start;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  button { font: inherit; cursor: pointer; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  /* ===== מסך האריחים ===== */
+  #home { min-height: 100%; padding: 16px; padding-inline: 16px; }
+  #home[hidden] { display: none; }
+  .top {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    margin-block-end: 16px;
+  }
+  .top h1 { font-size: 1.5rem; margin: 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controls input[type="search"] {
+    min-height: 44px; min-width: 220px; padding-inline: 12px; border: 1px solid var(--border);
+    border-radius: 8px; font: inherit; background: var(--surface); color: var(--text);
+  }
+  .controls label.chk { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--muted); }
+  .btn {
+    min-height: 44px; min-width: 44px; padding-inline: 14px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface); color: var(--text);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+
+  .status {
+    border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius);
+    padding: 12px 16px; margin-block-end: 16px; color: var(--muted);
+  }
+  .status.error { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+  .status[hidden] { display: none; }
+
+  .group { margin-block-end: 24px; }
+  .group h2 {
+    font-size: 1.05rem; margin: 0 0 10px; color: var(--muted); font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .group h2 .count { font-weight: 400; }
+  .grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 820px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 480px)  { .grid { grid-template-columns: 1fr; } #home { padding: 12px; } }
+
+  .tile {
+    position: relative; display: flex; flex-direction: column; gap: 6px; text-align: start;
+    min-height: 104px; padding: 14px 16px; padding-inline-start: 18px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); width: 100%;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .tile::before {
+    content: ""; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 5px;
+    border-radius: 0 4px 4px 0; background: var(--tile-color, var(--accent));
+  }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(20, 30, 50, .10); }
+  .tile .kind { font-size: .8rem; color: var(--muted); }
+  .tile .title { font-weight: 600; font-size: 1.05rem; overflow-wrap: anywhere; }
+  .tile .desc { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+  .tile.dash { --tile-color: var(--tile-dash); }
+  .tile.personal { --tile-color: var(--tile-personal); }
+  .tile.web { --tile-color: var(--tile-web); }
+  .empty { color: var(--muted); padding: 8px 0; }
+
+  /* ===== מסך הצפייה ===== */
+  #viewer { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--surface); z-index: 10; }
+  #viewer[hidden] { display: none; }
+  #viewer header {
+    height: var(--header-h); flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding-inline: 8px; border-block-end: 1px solid var(--border); background: var(--surface);
+  }
+  #viewer header .btn { min-height: 40px; padding-inline: 10px; }
+  #viewer header .vtitle { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #frameWrap { position: relative; flex: 1 1 auto; min-height: 0; }
+  #frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 24px; text-align: center; background: rgba(255,255,255,.92);
+  }
+  .overlay[hidden] { display: none; }
+  .spinner {
+    width: 36px; height: 36px; border-radius: 50%; border: 4px solid var(--border); border-top-color: var(--accent);
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .tile, .tile:hover { transition: none; transform: none; }
+    .spinner { animation: none; border-top-color: var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== מסך האריחים ===================== -->
+<main id="home">
+  <div class="top">
+    <h1>מרכז בקרה</h1>
+    <div class="controls">
+      <input id="search" type="search" placeholder="סינון אריחים…" aria-label="סינון אריחים לפי שם">
+      <label class="chk"><input id="showManaged" type="checkbox"> הצג גם רכיבים מנוהלים</label>
+      <button id="reload" class="btn" type="button" title="טעינה מחדש של הרשימה">רענון רשימה</button>
+    </div>
+  </div>
+
+  <div id="status" class="status" role="status" aria-live="polite">טוען את רשימת הדשבורדים והמערכות…</div>
+
+  <section class="group" id="grpPersonal" hidden>
+    <h2>דשבורדים אישיים <span class="count"></span></h2>
+    <div class="grid" role="list"></div>
+  </section>
+  <section class="group" id="grpSystem" hidden>
+    <h2>דשבורדי מערכת <span class="count"></span></h2>
+    <div class="grid" role="list"></div>
+  </section>
+  <section class="group" id="grpWeb" hidden>
+    <h2>מערכות (משאבי HTML) <span class="count"></span></h2>
+    <div class="grid" role="list"></div>
+  </section>
+  <p id="noResults" class="empty" hidden>אין אריחים שמתאימים לסינון.</p>
+</main>
+
+<!-- ===================== מסך הצפייה ===================== -->
+<section id="viewer" hidden aria-label="תצוגת מערכת">
+  <header>
+    <button id="back" class="btn primary" type="button" aria-label="חזרה למסך האריחים">&#8592; חזרה</button>
+    <div id="vtitle" class="vtitle"></div>
+    <button id="refresh" class="btn" type="button" title="טעינה מחדש של המערכת">רענון</button>
+    <button id="newTab" class="btn" type="button" title="פתיחה בחלון חדש">חלון חדש</button>
+  </header>
+  <div id="frameWrap">
+    <iframe id="frame" title="תוכן המערכת" allow="fullscreen"></iframe>
+    <div id="loading" class="overlay" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <div>טוען…</div>
+    </div>
+    <div id="slow" class="overlay" hidden role="alert">
+      <div>הטעינה נמשכת יותר מהרגיל או שהעמוד לא נטען.</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center">
+        <button id="slowRetry" class="btn" type="button">נסה שוב</button>
+        <button id="slowNewTab" class="btn primary" type="button">פתח בחלון חדש</button>
+        <button id="slowBack" class="btn" type="button">חזרה לאריחים</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= הגדרות (רשימה קבועה בקוד, ללא אחסון בדפדפן) ================= */
+  var CONFIG = {
+    API_VERSION: 'v9.2',
+    // 'iframe'  = הדשבורד נפתח בתוך מסך הצפייה (עם navbar=off).
+    // 'navigate'= חלופה אם הסביבה לא מכבדת navbar=off: ניווט בחלון הראשי, חזרה דרך Dynamics.
+    DASHBOARD_MODE: 'iframe',
+    // שמות לוגיים של משאבים שלא להציג (למשל קובצי עזר). ריק = להציג הכול.
+    HIDDEN_WEBRESOURCES: [],
+    // משאבים ששמם מכיל אחת מהמחרוזות האלה לא יוצגו (קטעי עזר נפוצים). ניתן לרוקן.
+    HIDDEN_NAME_FRAGMENTS: ['/lib/', '/vendor/', '/partials/'],
+    LOAD_TIMEOUT_MS: 15000
+  };
+
+  /* ================= עזרים ================= */
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    home: $('home'), viewer: $('viewer'), status: $('status'), search: $('search'),
+    showManaged: $('showManaged'), reload: $('reload'), noResults: $('noResults'),
+    frame: $('frame'), vtitle: $('vtitle'), back: $('back'), refresh: $('refresh'), newTab: $('newTab'),
+    loading: $('loading'), slow: $('slow'), slowRetry: $('slowRetry'), slowNewTab: $('slowNewTab'), slowBack: $('slowBack'),
+    groups: { personal: $('grpPersonal'), system: $('grpSystem'), web: $('grpWeb') }
+  };
+
+  function getXrm() {
+    try { if (window.Xrm && window.Xrm.Utility) return window.Xrm; } catch (e) {}
+    try { if (window.parent && window.parent.Xrm && window.parent.Xrm.Utility) return window.parent.Xrm; } catch (e) {}
+    return null;
+  }
+  var xrm = getXrm();
+
+  function getClientUrl() {
+    try { if (xrm) return xrm.Utility.getGlobalContext().getClientUrl(); } catch (e) {}
+    return window.location.origin;
+  }
+  var clientUrl = getClientUrl();
+
+  var appIdPromise = new Promise(function (resolve) {
+    try {
+      if (xrm && xrm.Utility.getGlobalContext().getCurrentAppProperties) {
+        xrm.Utility.getGlobalContext().getCurrentAppProperties().then(
+          function (p) { resolve(p && p.appId ? p.appId : null); },
+          function () { resolve(null); }
+        );
+        return;
+      }
+    } catch (e) {}
+    // fallback: appid מתוך כתובת ההורה אם נגיש
+    try {
+      var m = /[?&]appid=([0-9a-fA-F-]{36})/.exec(window.parent.location.search || '');
+      if (m) { resolve(m[1]); return; }
+    } catch (e) {}
+    resolve(null);
+  });
+
+  // השם הלוגי של המשאב הזה עצמו (כדי לא להציג אותו כאריח של עצמו)
+  var selfName = (function () {
+    var m = /\/WebResources\/(.+)$/i.exec(decodeURIComponent(window.location.pathname));
+    return m ? m[1].replace(/\?.*$/, '') : '';
+  })();
+
+  function setStatus(text, isError) {
+    els.status.hidden = !text;
+    els.status.textContent = text || '';
+    els.status.classList.toggle('error', !!isError);
+  }
+
+  /* ================= Dataverse Web API, עם דפדוף מלא ================= */
+  function apiGetAll(path) {
+    var url = clientUrl + '/api/data/' + CONFIG.API_VERSION + '/' + path;
+    var out = [];
+    function page(u) {
+      return fetch(u, {
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0',
+          'Prefer': 'odata.maxpagesize=500'
+        }
+      }).then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('אין הרשאה לקרוא ' + path + ' (HTTP ' + r.status + ')');
+        if (!r.ok) throw new Error('שגיאת שרת בקריאת ' + path + ' (HTTP ' + r.status + ')');
+        return r.json();
+      }).then(function (j) {
+        out = out.concat(j.value || []);
+        var next = j['@odata.nextLink'];
+        if (next) return page(next);
+        return out;
+      });
+    }
+    return page(url);
+  }
+
+  function loadSystemDashboards() {
+    return apiGetAll('systemforms?$select=formid,name,description,ismanaged,objecttypecode'
+      + '&$filter=type eq 0 and formactivationstate eq 1&$orderby=name asc');
+  }
+  function loadPersonalDashboards() {
+    return apiGetAll('userforms?$select=userformid,name,description&$filter=type eq 0&$orderby=name asc');
+  }
+  function loadHtmlWebResources() {
+    return apiGetAll('webresourceset?$select=webresourceid,name,displayname,description,ismanaged'
+      + '&$filter=webresourcetype eq 1&$orderby=displayname asc');
+  }
+
+  /* ================= מודל האריחים ================= */
+  var tiles = [];   // {key, kind:'personal'|'system'|'web', id, title, desc, managed}
+
+  function buildTiles(sysDash, perDash, webRes) {
+    var list = [];
+    perDash.forEach(function (d) {
+      list.push({ key: 'personal:' + d.userformid, kind: 'personal', id: d.userformid,
+        title: d.name || '(ללא שם)', desc: d.description || '', managed: false });
+    });
+    sysDash.forEach(function (d) {
+      list.push({ key: 'system:' + d.formid, kind: 'system', id: d.formid,
+        title: d.name || '(ללא שם)', desc: d.description || '', managed: !!d.ismanaged });
+    });
+    webRes.forEach(function (w) {
+      if (!w.name || w.name === selfName) return;
+      if (CONFIG.HIDDEN_WEBRESOURCES.indexOf(w.name) !== -1) return;
+      var lower = w.name.toLowerCase();
+      for (var i = 0; i < CONFIG.HIDDEN_NAME_FRAGMENTS.length; i++) {
+        if (lower.indexOf(CONFIG.HIDDEN_NAME_FRAGMENTS[i].toLowerCase()) !== -1) return;
+      }
+      list.push({ key: 'web:' + w.name, kind: 'web', id: w.name,
+        title: w.displayname || w.name, desc: w.displayname ? w.name : (w.description || ''), managed: !!w.ismanaged });
+    });
+    return list;
+  }
+
+  function kindLabel(kind) {
+    return kind === 'personal' ? 'דשבורד אישי' : kind === 'system' ? 'דשבורד מערכת' : 'משאב HTML';
+  }
+
+  function render() {
+    var q = (els.search.value || '').trim().toLowerCase();
+    var showManaged = els.showManaged.checked;
+    var shown = 0;
+    ['personal', 'system', 'web'].forEach(function (kind) {
+      var sec = els.groups[kind];
+      var grid = sec.querySelector('.grid');
+      grid.innerHTML = '';
+      var items = tiles.filter(function (t) {
+        if (t.kind !== kind) return false;
+        if (t.managed && !showManaged) return false;
+        if (q && (t.title + ' ' + t.desc).toLowerCase().indexOf(q) === -1) return false;
+        return true;
+      });
+      items.forEach(function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tile ' + (kind === 'system' ? 'dash' : kind);
+        b.setAttribute('role', 'listitem');
+        b.setAttribute('data-key', t.key);
+        b.setAttribute('aria-label', kindLabel(kind) + ': ' + t.title);
+        var k = document.createElement('div'); k.className = 'kind'; k.textContent = kindLabel(kind) + (t.managed ? ' · מנוהל' : '');
+        var ti = document.createElement('div'); ti.className = 'title'; ti.textContent = t.title;
+        b.appendChild(k); b.appendChild(ti);
+        if (t.desc) { var d = document.createElement('div'); d.className = 'desc'; d.textContent = t.desc; b.appendChild(d); }
+        b.addEventListener('click', function () { openTile(t, b); });
+        grid.appendChild(b);
+      });
+      sec.querySelector('.count').textContent = items.length ? '(' + items.length + ')' : '';
+      sec.hidden = items.length === 0;
+      shown += items.length;
+    });
+    els.noResults.hidden = !(tiles.length && shown === 0);
+  }
+
+  function loadAll() {
+    setStatus('טוען את רשימת הדשבורדים והמערכות…', false);
+    tiles = [];
+    render();
+    var results = { sys: null, per: null, web: null };
+    var errors = [];
+    function wrap(p, key) {
+      return p.then(function (v) { results[key] = v; }, function (e) { errors.push(e && e.message ? e.message : String(e)); results[key] = []; });
+    }
+    return Promise.all([
+      wrap(loadSystemDashboards(), 'sys'),
+      wrap(loadPersonalDashboards(), 'per'),
+      wrap(loadHtmlWebResources(), 'web')
+    ]).then(function () {
+      tiles = buildTiles(results.sys, results.per, results.web);
+      render();
+      if (errors.length) {
+        setStatus('חלק מהרשימה לא נטען: ' + errors.join(' | ') + '. הרשימה המוצגת חלקית.', true);
+      } else if (!tiles.length) {
+        setStatus('לא נמצאו דשבורדים או משאבי HTML. בדוק הרשאות קריאה ל-systemform, userform ו-webresource.', true);
+      } else {
+        setStatus('', false);
+      }
+      openFromHash();
+    });
+  }
+
+  /* ================= פתיחה וחזרה ================= */
+  var current = null;      // האריח הפתוח
+  var lastFocus = null;    // האריח שהיה בפוקוס לפני הפתיחה
+  var loadTimer = null;
+
+  function tileUrl(t, appId) {
+    if (t.kind === 'web') {
+      return clientUrl + '/WebResources/' + encodeURI(t.id);
+    }
+    var u = clientUrl + '/main.aspx?pagetype=dashboard&id=' + encodeURIComponent('{' + t.id + '}') + '&navbar=off&cmdbar=true';
+    if (appId) u += '&appid=' + encodeURIComponent(appId);
+    return u;
+  }
+
+  function openTile(t, sourceEl) {
+    lastFocus = sourceEl || document.activeElement;
+    if (t.kind !== 'web' && CONFIG.DASHBOARD_MODE === 'navigate' && xrm && xrm.Navigation && xrm.Navigation.navigateTo) {
+      xrm.Navigation.navigateTo({ pageType: 'dashboard', dashboardId: t.id }, { target: 1 })
+        .then(null, function () { setStatus('לא ניתן לנווט לדשבורד "' + t.title + '".', true); });
+      return;
+    }
+    current = t;
+    try { history.replaceState(null, '', '#tile=' + encodeURIComponent(t.key)); } catch (e) {}
+    els.vtitle.textContent = t.title;
+    els.home.hidden = true;
+    els.viewer.hidden = false;
+    loadFrame();
+    els.back.focus();
+  }
+
+  function loadFrame() {
+    if (!current) return;
+    els.slow.hidden = true;
+    els.loading.hidden = false;
+    clearTimeout(loadTimer);
+    appIdPromise.then(function (appId) {
+      var url = tileUrl(current, appId);
+      els.frame.src = url;
+      loadTimer = setTimeout(function () {
+        els.loading.hidden = true;
+        els.slow.hidden = false;
+      }, CONFIG.LOAD_TIMEOUT_MS);
+    });
+  }
+
+  els.frame.addEventListener('load', function () {
+    if (!current) return;
+    clearTimeout(loadTimer);
+    els.loading.hidden = true;
+    els.slow.hidden = true;
+  });
+
+  function goBack() {
+    clearTimeout(loadTimer);
+    current = null;
+    els.frame.src = 'about:blank';   // לא להשאיר דשבורד כבד רץ ברקע
+    els.viewer.hidden = true;
+    els.home.hidden = false;
+    els.loading.hidden = true;
+    els.slow.hidden = true;
+    try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+    if (lastFocus && document.body.contains(lastFocus)) lastFocus.focus(); else els.search.focus();
+  }
+
+  function openInNewTab() {
+    if (!current) return;
+    appIdPromise.then(function (appId) {
+      var w = window.open(tileUrl(current, appId), '_blank', 'noopener');
+      if (!w) setStatus('הדפדפן חסם פתיחת חלון חדש. אפשר חלונות קופצים לכתובת זו.', true);
+    });
+  }
+
+  function openFromHash() {
+    var m = /#tile=([^&]+)/.exec(window.location.hash || '');
+    if (!m) return;
+    var key = decodeURIComponent(m[1]);
+    for (var i = 0; i < tiles.length; i++) {
+      if (tiles[i].key === key) { openTile(tiles[i], null); return; }
+    }
+  }
+
+  /* ================= אירועים ================= */
+  els.back.addEventListener('click', goBack);
+  els.slowBack.addEventListener('click', goBack);
+  els.refresh.addEventListener('click', loadFrame);
+  els.slowRetry.addEventListener('click', loadFrame);
+  els.newTab.addEventListener('click', openInNewTab);
+  els.slowNewTab.addEventListener('click', openInNewTab);
+  els.reload.addEventListener('click', function () { loadAll(); });
+  els.search.addEventListener('input', render);
+  els.showManaged.addEventListener('change', render);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !els.viewer.hidden) { e.preventDefault(); goBack(); }
+  });
+  window.addEventListener('hashchange', function () {
+    var m = /#tile=([^&]+)/.exec(window.location.hash || '');
+    if (!m) { if (current) goBack(); return; }
+    var key = decodeURIComponent(m[1]);
+    if (current && current.key === key) return;
+    openFromHash();
+  });
+
+  loadAll();
+})();
+</script>
+</body>
+</html>
